@@ -17,5 +17,5 @@ app.get("/api/health", (req, res) => {
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log(`CampusSwap server is running on port ${PORT}`);
+  console.log(`PawHome server is running on port ${PORT}`);
 });
