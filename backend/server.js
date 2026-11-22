@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 const connectDB = require("./db");
+const authRoutes = require("./routes/auth");
 const petRoutes = require("./routes/pets");
 const adoptionRequestRoutes = require("./routes/adoptionRequests");
 
@@ -18,6 +19,7 @@ app.use(express.json());
 app.get("/api/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
+app.use("/api/auth", authRoutes);
 app.use("/api/pets", petRoutes);
 app.use("/api/requests", adoptionRequestRoutes);
 
