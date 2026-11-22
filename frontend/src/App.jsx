@@ -3,6 +3,14 @@ import { useEffect, useState } from "react";
 const API_BASE = "http://localhost:3000/api";
 
 export default function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authMode, setAuthMode] = useState("login");
+  const [authForm, setAuthForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
   const [currentUserId, setCurrentUserId] = useState("");
   const [activeTab, setActiveTab] = useState("browse");
 
@@ -31,7 +39,7 @@ export default function App() {
       const data = await res.json();
       if (res.ok) setAvailablePets(data);
     } catch {
-      // Backend may not be running during static build
+      // Backend may not be running
     }
   };
 
@@ -62,13 +70,60 @@ export default function App() {
     fetchUserData(currentUserId);
   }, [currentUserId]);
 
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    setFeedback("");
+    setError("");
+
+    const endpoint = authMode === "register" ? "register" : "login";
+    const payload =
+      authMode === "register"
+        ? { name: authForm.name, email: authForm.email, password: authForm.password }
+        : { email: authForm.email, password: authForm.password };
+
+    try {
+      const res = await fetch(`${API_BASE}/auth/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || "Authentication failed.");
+      } else {
+        setCurrentUser(data.user);
+        setCurrentUserId(data.user._id || data.user.id || "");
+        if (data.token) {
+          localStorage.setItem("pawhome_token", data.token);
+        }
+        setAuthForm({ name: "", email: "", password: "" });
+        setFeedback(
+          authMode === "register"
+            ? `Welcome to PawHome, ${data.user.name}!`
+            : `Welcome back, ${data.user.name}!`
+        );
+      }
+    } catch {
+      setError("Could not reach backend server on port 3000.");
+    }
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
+    setCurrentUserId("");
+    localStorage.removeItem("pawhome_token");
+    setFeedback("You have been logged out.");
+    setError("");
+  };
+
   const handlePostPet = async (e) => {
     e.preventDefault();
     setFeedback("");
     setError("");
 
     if (!currentUserId.trim()) {
-      setError("Please enter your User ID at the top first.");
+      setError("Please log in or enter your User ID at the top first.");
       return;
     }
 
@@ -112,7 +167,7 @@ export default function App() {
     setError("");
 
     if (!currentUserId.trim()) {
-      setError("Please enter your User ID at the top before sending a request.");
+      setError("Please log in or enter your User ID at the top before sending a request.");
       return;
     }
 
@@ -166,17 +221,72 @@ export default function App() {
 
   return (
     <div style={{ maxWidth: 840, margin: "2rem auto", padding: "0 1rem", fontFamily: "sans-serif" }}>
-      <h1 id="project-name">PawHome</h1>
-      <p>Connect pets with loving homes across Egypt.</p>
+      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+        <div>
+          <h1 id="project-name" style={{ marginBottom: "0.25rem" }}>PawHome</h1>
+          <p style={{ marginTop: 0 }}>Connect pets with loving homes across Egypt.</p>
+        </div>
+        {currentUser ? (
+          <div style={{ textAlign: "right" }}>
+            <div data-testid="header-user-name">
+              <strong>Signed in as: {currentUser.name}</strong>
+            </div>
+            <div style={{ fontSize: "0.85rem", color: "#555" }}>{currentUser.email}</div>
+            <button type="button" onClick={handleLogout} style={{ marginTop: "0.35rem" }}>
+              Log out
+            </button>
+          </div>
+        ) : (
+          <div>
+            <span>Not logged in</span>
+          </div>
+        )}
+      </header>
 
       <div style={{ margin: "1rem 0", padding: "0.75rem", background: "#f5f5f5", borderRadius: 6 }}>
+        <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem" }}>
+          <button type="button" onClick={() => setAuthMode("login")}>
+            Login
+          </button>
+          <button type="button" onClick={() => setAuthMode("register")}>
+            Register
+          </button>
+        </div>
+
+        <form onSubmit={handleAuthSubmit} style={{ display: "grid", gap: "0.5rem", maxWidth: 420, marginBottom: "0.75rem" }}>
+          {authMode === "register" && (
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={authForm.name}
+              onChange={(e) => setAuthForm({ ...authForm, name: e.target.value })}
+              required
+            />
+          )}
+          <input
+            type="email"
+            placeholder="Email"
+            value={authForm.email}
+            onChange={(e) => setAuthForm({ ...authForm, email: e.target.value })}
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={authForm.password}
+            onChange={(e) => setAuthForm({ ...authForm, password: e.target.value })}
+            required
+          />
+          <button type="submit">{authMode === "register" ? "Create Account" : "Log In"}</button>
+        </form>
+
         <label>
           <strong>Active User ID (ObjectId): </strong>
           <input
             type="text"
             value={currentUserId}
             onChange={(e) => setCurrentUserId(e.target.value)}
-            placeholder="Paste a 24-character MongoDB User ObjectId"
+            placeholder="Auto-filled on login or paste a 24-character ObjectId"
             style={{ width: "320px", padding: "0.4rem", marginLeft: "0.5rem" }}
           />
         </label>
@@ -314,7 +424,7 @@ export default function App() {
         <div>
           <h2>My Pets</h2>
           {!currentUserId.trim() ? (
-            <p>Enter your User ID above to see your posted pets.</p>
+            <p>Log in or enter your User ID above to see your posted pets.</p>
           ) : myPets.length === 0 ? (
             <p>You have not posted any pets yet.</p>
           ) : (
@@ -333,7 +443,7 @@ export default function App() {
         <div>
           <h2>My Requests</h2>
           {!currentUserId.trim() ? (
-            <p>Enter your User ID above to view your adoption requests.</p>
+            <p>Log in or enter your User ID above to view your adoption requests.</p>
           ) : myRequests.length === 0 ? (
             <p>No adoption requests found.</p>
           ) : (
