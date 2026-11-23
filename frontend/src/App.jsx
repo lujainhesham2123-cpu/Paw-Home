@@ -25,6 +25,18 @@ export default function App() {
     photoUrl: "",
   });
 
+  const [editingPetId, setEditingPetId] = useState(null);
+  const [editPetForm, setEditPetForm] = useState({
+    name: "",
+    type: "cat",
+    breed: "",
+    age: "",
+    gender: "male",
+    city: "",
+    description: "",
+    photoUrl: "",
+  });
+
   const [availablePets, setAvailablePets] = useState([]);
   const [myPets, setMyPets] = useState([]);
   const [myRequests, setMyRequests] = useState([]);
@@ -112,6 +124,7 @@ export default function App() {
   const handleLogout = () => {
     setCurrentUser(null);
     setCurrentUserId("");
+    setEditingPetId(null);
     localStorage.removeItem("pawhome_token");
     setFeedback("You have been logged out.");
     setError("");
@@ -156,6 +169,87 @@ export default function App() {
         await fetchAvailablePets();
         await fetchUserData(currentUserId);
         setActiveTab("browse");
+      }
+    } catch {
+      setError("Could not reach backend server on port 3000.");
+    }
+  };
+
+  const startEditingPet = (pet) => {
+    setFeedback("");
+    setError("");
+    setEditingPetId(pet._id);
+    setEditPetForm({
+      name: pet.name || "",
+      type: pet.type || "cat",
+      breed: pet.breed || "",
+      age: pet.age ?? "",
+      gender: pet.gender || "male",
+      city: pet.city || "",
+      description: pet.description || "",
+      photoUrl: pet.photoUrl || "",
+    });
+  };
+
+  const handleUpdatePet = async (e, petId) => {
+    e.preventDefault();
+    setFeedback("");
+    setError("");
+
+    if (!currentUserId.trim()) {
+      setError("Please log in or enter your User ID first.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/pets/${petId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...editPetForm,
+          age: Number(editPetForm.age),
+          owner: currentUserId.trim(),
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || "Failed to update pet post.");
+      } else {
+        setFeedback(`${data.name} has been updated!`);
+        setEditingPetId(null);
+        await fetchAvailablePets();
+        await fetchUserData(currentUserId);
+      }
+    } catch {
+      setError("Could not reach backend server on port 3000.");
+    }
+  };
+
+  const handleDeletePet = async (pet) => {
+    setFeedback("");
+    setError("");
+
+    if (!currentUserId.trim()) {
+      setError("Please log in or enter your User ID first.");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/pets/${pet._id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ owner: currentUserId.trim() }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.message || "Failed to delete pet post.");
+      } else {
+        setFeedback(`${pet.name} has been deleted.`);
+        if (editingPetId === pet._id) setEditingPetId(null);
+        setMyPets((prev) => prev.filter((item) => item._id !== pet._id));
+        setAvailablePets((prev) => prev.filter((item) => item._id !== pet._id));
       }
     } catch {
       setError("Could not reach backend server on port 3000.");
@@ -431,7 +525,85 @@ export default function App() {
             <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: "0.75rem" }}>
               {myPets.map((pet) => (
                 <li key={pet._id} style={{ border: "1px solid #ccc", borderRadius: 6, padding: "0.75rem" }}>
-                  <strong>{pet.name}</strong> ({pet.type}) — {pet.city} · Status: <em>{pet.status}</em>
+                  {editingPetId === pet._id ? (
+                    <form onSubmit={(e) => handleUpdatePet(e, pet._id)} style={{ display: "grid", gap: "0.5rem" }}>
+                      <strong>Editing {pet.name}</strong>
+                      <input
+                        type="text"
+                        placeholder="Pet Name"
+                        value={editPetForm.name}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, name: e.target.value })}
+                        required
+                      />
+                      <select
+                        value={editPetForm.type}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, type: e.target.value })}
+                      >
+                        <option value="cat">Cat</option>
+                        <option value="dog">Dog</option>
+                        <option value="bird">Bird</option>
+                        <option value="rabbit">Rabbit</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="Breed (optional)"
+                        value={editPetForm.breed}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, breed: e.target.value })}
+                      />
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="Age (in months)"
+                        value={editPetForm.age}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, age: e.target.value })}
+                        required
+                      />
+                      <select
+                        value={editPetForm.gender}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, gender: e.target.value })}
+                      >
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                      <input
+                        type="text"
+                        placeholder="City"
+                        value={editPetForm.city}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, city: e.target.value })}
+                        required
+                      />
+                      <textarea
+                        rows={2}
+                        placeholder="Description"
+                        value={editPetForm.description}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, description: e.target.value })}
+                        required
+                      />
+                      <input
+                        type="url"
+                        placeholder="Photo URL (optional)"
+                        value={editPetForm.photoUrl}
+                        onChange={(e) => setEditPetForm({ ...editPetForm, photoUrl: e.target.value })}
+                      />
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button type="submit">Save Changes</button>
+                        <button type="button" onClick={() => setEditingPetId(null)}>Cancel</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+                      <div>
+                        <strong>{pet.name}</strong> ({pet.type}) — {pet.city} · {pet.age} months ·{" "}
+                        <em>{pet.status}</em>
+                        <div style={{ fontSize: "0.9rem", color: "#555" }}>{pet.description}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button type="button" onClick={() => startEditingPet(pet)}>Edit</button>
+                        <button type="button" onClick={() => handleDeletePet(pet)}>Delete</button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
